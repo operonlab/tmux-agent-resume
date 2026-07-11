@@ -1,0 +1,4 @@
+docs/demo.gif
+*.log
+*.tsv
+.DS_Store
