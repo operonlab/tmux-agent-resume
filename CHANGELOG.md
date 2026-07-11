@@ -14,7 +14,7 @@ AI CLI conversations to their exact sessions after a tmux crash/restart.
 
 - **tmux ≥ 1.9** — tmux-resurrect's own floor. The tmux features used here are
   older: `send-keys -l` (1.7), free-form `@` user options (1.8),
-  `pane_current_command` / `pane_current_path` (1.8 / 2.1), all confirmed
+  `pane_current_command` / `pane_current_path` (≤1.9 / 1.9), all confirmed
   against the official tmux `CHANGES`. Developed and tested on **tmux next-3.8**
   (HEAD-9180356).
 - **tmux-resurrect** installed (peer dependency).

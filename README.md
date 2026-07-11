@@ -210,7 +210,7 @@ validation — types the resume command. Details per CLI:
 
 - **tmux ≥ 1.9.** That is tmux-resurrect's own floor; the tmux features this
   plugin uses are older — `send-keys -l` (tmux 1.7), free-form `@` user options
-  (tmux 1.8), `pane_current_command` / `pane_current_path` (tmux 1.8 / 2.1).
+  (tmux 1.8), `pane_current_command` / `pane_current_path` (tmux ≤1.9 / 1.9).
   Verified against the official tmux `CHANGES`. Developed and tested on
   **tmux next-3.8**.
 - **tmux-resurrect** — peer dependency, must be installed.
