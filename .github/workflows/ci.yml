@@ -1,0 +1,71 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  shellcheck:
+    name: shellcheck (-S warning)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Lint all shell scripts
+        run: |
+          shellcheck -S warning \
+            agent-resume.tmux \
+            scripts/common.sh \
+            scripts/validate.sh \
+            scripts/snapshot.sh \
+            scripts/restore.sh \
+            scripts/teardown.sh \
+            hooks/claude-session-map.sh \
+            hooks/install-claude-hook.sh \
+            tests/smoke.sh \
+            tests/validate_test.sh \
+            tests/hook_install_test.sh
+
+  unit:
+    # Platform-independent tests: the allowlist is pure regex; the hook
+    # installer is pure jq. Both run fine on Linux.
+    name: unit (portable)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: validate.sh allowlist tests
+        run: bash tests/validate_test.sh
+      - name: install-claude-hook.sh tests
+        run: bash tests/hook_install_test.sh
+
+  smoke:
+    # The reverse-lookup relies on BSD tool output (stat -f, date -j, ps, lsof),
+    # so behaviour is only asserted on macOS. Linux gets shellcheck + unit above.
+    name: smoke (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tmux + jq
+        run: brew install tmux jq
+      - name: Assert tmux >= 1.9 (send-keys -l / @ user options floor)
+        run: |
+          ver="$(tmux -V | awk '{print $2}')"
+          case "$ver" in
+            master|next-*) echo "tmux $ver: dev build, assumed >= 1.9"; exit 0 ;;
+          esac
+          num="${ver%[a-z]}"          # 3.3a -> 3.3
+          maj="${num%%.*}"
+          min="${num#*.}"; min="${min%%.*}"
+          if [ "$maj" -lt 1 ] || { [ "$maj" -eq 1 ] && [ "$min" -lt 9 ]; }; then
+            echo "tmux $ver is below the required 1.9"; exit 1
+          fi
+          echo "tmux $ver satisfies >= 1.9"
+      - name: Smoke + unit on isolated socket
+        run: |
+          bash tests/validate_test.sh
+          bash tests/hook_install_test.sh
+          bash tests/smoke.sh
