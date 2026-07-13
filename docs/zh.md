@@ -10,6 +10,10 @@
 shellcheck，實際行為只在 macOS 驗證。開發與測試環境為 **tmux next-3.8**
 （HEAD-9180356），2026-07。
 
+![tmux-agent-resume restore --dry-run：一張表格列出八個 AI CLI pane（claude、codex、agy、copilot、opencode、kimi、hermes、qwen），各自顯示重啟後將會打入的 resume 指令，全部通過各 CLI 白名單、且完全不送任何按鍵](screenshot.png)
+
+*還原（dry-run）：對每個復原的 pane，插件把「將會」打入、用來把該 AI CLI 接回自己 session 的確切指令記進 log —— 每一條都先過各 CLI 白名單 —— 全程不送任何按鍵。*
+
 ---
 
 ## 1. 這是什麼？
