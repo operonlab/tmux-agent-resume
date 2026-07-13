@@ -50,7 +50,7 @@ Copy-paste these three steps:
 
 ```sh
 # 1. Download the plugin somewhere permanent
-git clone https://github.com/joneshong/tmux-agent-resume ~/.tmux/plugins/tmux-agent-resume
+git clone https://github.com/operonlab/tmux-agent-resume ~/.tmux/plugins/tmux-agent-resume
 
 # 2. Tell tmux to load it — appends one line to your config
 echo "run-shell ~/.tmux/plugins/tmux-agent-resume/agent-resume.tmux" >> ~/.tmux.conf
@@ -81,7 +81,7 @@ line (resurrect first — we chain onto it):
 
 ```tmux
 set -g @plugin 'tmux-plugins/tmux-resurrect'
-set -g @plugin 'joneshong/tmux-agent-resume'
+set -g @plugin 'operonlab/tmux-agent-resume'
 ```
 
 Reload your config (`prefix` `r`), then press `prefix` `I` (capital i) to have

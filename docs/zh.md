@@ -45,7 +45,7 @@ tmux-resurrect**（這是 peer dependency——本插件是它的延伸）。
 
 ```sh
 # 1. 把插件下載到固定位置
-git clone https://github.com/joneshong/tmux-agent-resume ~/.tmux/plugins/tmux-agent-resume
+git clone https://github.com/operonlab/tmux-agent-resume ~/.tmux/plugins/tmux-agent-resume
 
 # 2. 叫 tmux 載入它——在設定檔尾端加一行
 echo "run-shell ~/.tmux/plugins/tmux-agent-resume/agent-resume.tmux" >> ~/.tmux.conf
@@ -74,7 +74,7 @@ run '~/.tmux/plugins/tpm/tpm'
 
 ```tmux
 set -g @plugin 'tmux-plugins/tmux-resurrect'
-set -g @plugin 'joneshong/tmux-agent-resume'
+set -g @plugin 'operonlab/tmux-agent-resume'
 ```
 
 重新載入設定（`prefix` `r`），再按 `prefix` `I`（大寫 i）讓 TPM 下載。完成。

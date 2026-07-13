@@ -52,4 +52,4 @@ AI CLI conversations to their exact sessions after a tmux crash/restart.
 - `.github/workflows/ci.yml` — shellcheck + portable unit tests on Linux, full
   smoke on macOS.
 
-[0.1.0]: https://github.com/joneshong/tmux-agent-resume/releases/tag/v0.1.0
+[0.1.0]: https://github.com/operonlab/tmux-agent-resume/releases/tag/v0.1.0
