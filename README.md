@@ -117,7 +117,12 @@ fully without any hook.
 
 ## 4. Demo
 
-*Demo GIF coming soon.*
+![tmux-agent-resume demo](docs/demo.gif)
+
+A dry run (`@agent-resume-dry-run 1`): restore reads the snapshot it recorded on
+save and logs the exact resume command it *would* type into each pane — after
+each one passes the per-CLI allowlist — without sending a keystroke or launching
+any CLI.
 
 ---
 
