@@ -109,6 +109,33 @@ fi
 
 unset AGENT_RESUME_KEEP AGENT_RESUME_KEEP_DAYS
 
+# ── 2c. snapshot integrity guard: a 0-agent write is skipped ONLY while a
+#        restore is in progress and a non-empty snapshot already exists (the
+#        2026-07-15 mid-restore empty-save window). All other cases write. ────
+D2c="$TMPD/integ"; mkdir -p "$D2c"
+SNAPI="$D2c/agents.tsv"; LOCK="$D2c/agent-restore.lock"
+printf 'sess:1.1\tclaude\tindex\t/w\tclaude -r x\n' > "$SNAPI"   # a good, non-empty snapshot
+
+mkdir -p "$LOCK"                                                 # restore in progress
+if ar_should_skip_degenerate 0 "$SNAPI" "$LOCK"; then
+    ok "guard skips 0-agent save during restore with a non-empty snapshot (2026-07-15 window)"
+else bad "guard failed to skip the transient restore-window empty save"; fi
+
+if ar_should_skip_degenerate 3 "$SNAPI" "$LOCK"; then
+    bad "guard wrongly skipped a snapshot that captured agents"
+else ok "guard writes when agents were captured (>0)"; fi
+
+rmdir "$LOCK"                                                    # no restore active
+if ar_should_skip_degenerate 0 "$SNAPI" "$LOCK"; then
+    bad "guard wrongly skipped a genuine all-agents-closed empty save"
+else ok "guard writes a genuine empty save when no restore is active"; fi
+
+mkdir -p "$LOCK"; : > "$SNAPI"                                   # restore active, but nothing to protect
+if ar_should_skip_degenerate 0 "$SNAPI" "$LOCK"; then
+    bad "guard skipped when there was no non-empty snapshot to protect"
+else ok "guard writes when the existing snapshot is empty (nothing to lose)"; fi
+rmdir "$LOCK"
+
 # ── 3. portable primitives select the right branch per OS ─────────────────
 mf="$TMPD/mfile"; before="$(date +%s)"; : > "$mf"; after="$(date +%s)"
 native="$(ar_mtime "$mf")"
