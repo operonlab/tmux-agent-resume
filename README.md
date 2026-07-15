@@ -142,6 +142,8 @@ Set any of these in `~/.tmux.conf` **before** the plugin loads (i.e. above the
 | `@agent-resume-log` | `$TMUX_TMPDIR/tmux-agent-resume-<uid>/agent-resume.log` | Where the plugin writes its activity log. |
 | `@agent-resume-snapshot-file` | `~/.tmux/resurrect/agents.tsv` | The sidecar TSV of pane → resume-command, saved next to resurrect's own files. |
 | `@agent-resume-map-dir` | `$TMUX_TMPDIR/tmux-agent-resume-<uid>/claude-map` | Where the Claude SessionStart hook writes its pane → session-id map. If you override this, the hook picks it up automatically inside tmux. |
+| `@agent-resume-keep` | `5` | Floor of timestamped snapshots to keep — the newest N are never pruned. |
+| `@agent-resume-keep-days` | `30` | Beyond the keep floor, snapshots are aged out once older than this many days (floor + age-out, not a hard cap). |
 
 Example:
 

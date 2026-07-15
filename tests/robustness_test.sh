@@ -43,34 +43,71 @@ n="$(count_snaps "$D1")"
 if [ "$n" = "1" ]; then ok "rotation dedups identical snapshots (1 file kept)"
 else bad "rotation kept $n files for identical snapshots (expected 1)"; fi
 
-# ── 2. rotation: keep newest 5, prune >30d beyond that, `last`->newest ────
+# touch <file> to an mtime <days> in the past (portable BSD/GNU).
+touch_days_ago() {
+    local ep fmt
+    ep=$(( $(date +%s) - $2 * 86400 ))
+    if [ "$(uname)" = Darwin ]; then fmt="$(date -r "$ep" +%Y%m%d%H%M.%S)"
+    else fmt="$(date -d "@$ep" +%Y%m%d%H%M.%S)"; fi
+    touch -t "$fmt" "$1"
+}
+
+# Pin the floor + age-out through the env layer (ar_opt reads env before any
+# tmux option), so rotation runs hermetically with keep=3, days=30.
+AGENT_RESUME_KEEP=3
+AGENT_RESUME_KEEP_DAYS=30
+
+# ── 2. rotation age-out: a beyond-floor but RECENT snapshot is KEPT; only the
+#       beyond-floor snapshots older than KEEP_DAYS are pruned. This is the
+#       floor + age-out discriminator — a hard count cap would also delete the
+#       recent rC. ─────────────────────────────────────────────────────────
 D2="$TMPD/rot2"; mkdir -p "$D2"; SNAP2="$D2/agents.tsv"
-# two >30-day-old files (June) + four recent (July) — all distinct content
-mk() { printf '%s\n' "$2" > "$D2/agents.$1.tsv"; touch -t "$3" "$D2/agents.$1.tsv"; }
-mk 20260601T000000 old1 202606010000
-mk 20260601T000100 old2 202606010001
-mk 20260710T000000 r1   202607100000
-mk 20260711T000000 r2   202607110000
-mk 20260712T000000 r3   202607120000
-mk 20260713T000000 r4   202607130000
-ln -sfn agents.20260713T000000.tsv "$SNAP2"
+mkf() { printf '%s\n' "$1" > "$D2/agents.$1.tsv"; touch_days_ago "$D2/agents.$1.tsv" "$2"; }
+mkf rA 1      # recent, inside floor
+mkf rB 2      # recent, inside floor
+mkf rC 4      # recent, BEYOND floor -> kept (age-out, not a hard cap)
+mkf oD 40     # old, beyond floor -> pruned
+mkf oE 50     # old, beyond floor -> pruned
+ln -sfn agents.rA.tsv "$SNAP2"
 t="$(mktemp)"; printf 'newest\n' > "$t"; ar_rotate_snapshots "$SNAP2" "$t"
 n="$(count_snaps "$D2")"
-newest="$(ls -t "$D2"/agents.*.tsv | head -1)"
-linktgt="$(readlink "$SNAP2")"
-if [ "$n" = "5" ] \
-   && [ ! -e "$D2/agents.20260601T000000.tsv" ] \
-   && [ ! -e "$D2/agents.20260601T000100.tsv" ] \
-   && [ -e "$D2/agents.20260713T000000.tsv" ]; then
-    ok "rotation keeps newest 5, prunes the two >30d files"
+if [ "$n" = "4" ] \
+   && [ -e "$D2/agents.rC.tsv" ] \
+   && [ ! -e "$D2/agents.oD.tsv" ] \
+   && [ ! -e "$D2/agents.oE.tsv" ]; then
+    ok "rotation age-out: recent-beyond-floor kept, only >KEEP_DAYS beyond floor pruned"
 else
-    bad "rotation prune wrong: n=$n (old1/old2 should be gone, r4 kept)"
+    bad "rotation age-out wrong: n=$n (rC must stay, oD/oE must go)"
 fi
-if [ "$linktgt" = "$(basename "$newest")" ]; then
+newest="$(ls -t "$D2"/agents.*.tsv | head -1)"
+if [ "$(readlink "$SNAP2")" = "$(basename "$newest")" ]; then
     ok "rotation points 'last' symlink at the newest snapshot"
 else
-    bad "rotation 'last' -> $linktgt, newest is $(basename "$newest")"
+    bad "rotation 'last' -> $(readlink "$SNAP2"), newest is $(basename "$newest")"
 fi
+
+# ── 2b. rotation floor precision: with every file older than KEEP_DAYS, the
+#        newest KEEP by rank are protected and everything beyond is pruned —
+#        this pins the keep boundary (a +/-1 off-by-one shifts the count). ───
+D2b="$TMPD/rot2b"; mkdir -p "$D2b"; SNAP2b="$D2b/agents.tsv"
+mkf2() { printf '%s\n' "$1" > "$D2b/agents.$1.tsv"; touch_days_ago "$D2b/agents.$1.tsv" "$2"; }
+mkf2 q1 31   # inside floor by rank (kept despite being >KEEP_DAYS)
+mkf2 q2 33   # inside floor by rank (kept despite being >KEEP_DAYS)
+mkf2 q3 35   # first beyond floor -> pruned
+mkf2 q4 40   # beyond floor -> pruned
+mkf2 q5 45   # beyond floor -> pruned
+ln -sfn agents.q1.tsv "$SNAP2b"
+t="$(mktemp)"; printf 'newest\n' > "$t"; ar_rotate_snapshots "$SNAP2b" "$t"
+n="$(count_snaps "$D2b")"
+if [ "$n" = "3" ] \
+   && [ -e "$D2b/agents.q2.tsv" ] \
+   && [ ! -e "$D2b/agents.q3.tsv" ]; then
+    ok "rotation floor: newest KEEP protected by rank, beyond-floor pruned (boundary pinned)"
+else
+    bad "rotation floor wrong: n=$n (q2 must stay inside floor, q3 must be pruned)"
+fi
+
+unset AGENT_RESUME_KEEP AGENT_RESUME_KEEP_DAYS
 
 # ── 3. portable primitives select the right branch per OS ─────────────────
 mf="$TMPD/mfile"; before="$(date +%s)"; : > "$mf"; after="$(date +%s)"
@@ -150,6 +187,27 @@ else
         ok "degraded probe falls back to bare argv (mode=argv)"
     else
         bad "degraded probe row unexpected (row: $rowb)"
+    fi
+
+    # 4c. cwd probe ITSELF empty (id-probe tool absent / wrong-OS) -> a resumable
+    #     index still exists, so this must LOG loudly, not drop to bare argv in
+    #     silence. Shim the OS-appropriate cwd probe (lsof / readlink) to fail.
+    if [ "$(uname)" = Darwin ]; then printf '#!/bin/sh\nexit 1\n' > "$SHIM/lsof"
+    else printf '#!/bin/sh\nexit 1\n' > "$SHIM/readlink"; fi
+    chmod +x "$SHIM/lsof" "$SHIM/readlink" 2>/dev/null
+    SNAPC="$TMPD/c.tsv"; LOGC="$TMPD/c.log"
+    HOME="$HOMEDIR" AGENT_RESUME_SNAP_FILE="$SNAPC" AGENT_RESUME_LOG="$LOGC" \
+        AGENT_RESUME_TOOLS="kimi" bash "$ROOT/scripts/snapshot.sh" >/dev/null 2>&1
+    rowc="$(cat "$SNAPC" 2>/dev/null)"
+    if grep -q 'warn.*kimi.*cwd probe empty' "$LOGC" 2>/dev/null; then
+        ok "cwd probe empty is logged loudly (not a silent argv drop)"
+    else
+        bad "cwd probe empty degraded silently ($(tr '\n' '|' < "$LOGC" 2>/dev/null))"
+    fi
+    if printf '%s' "$rowc" | grep -q $'\tkimi\targv\t'; then
+        ok "cwd-probe-empty falls back to bare argv (mode=argv)"
+    else
+        bad "cwd-probe-empty row unexpected (row: $rowc)"
     fi
 fi
 

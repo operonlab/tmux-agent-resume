@@ -218,6 +218,11 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
                 elif [ "$matched" -gt 0 ]; then
                     slog "warn $coord (kimi): $matched session(s) matched cwd but none selectable (mtime probe empty -- platform tool?) -> argv fallback"
                 fi
+            elif [ -z "$kcwd" ] && [ -f "$kidx" ]; then
+                # a resumable session index exists but the cwd probe came back
+                # empty (lsof/readlink absent or wrong-OS) -> log, don't drop it
+                # to bare argv in silence. This is the A5 loud-degradation contract.
+                slog "warn $coord (kimi): cwd probe empty (platform tool absent?) -> argv fallback"
             fi
             ;;
         hermes)

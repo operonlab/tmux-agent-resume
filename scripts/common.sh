@@ -82,8 +82,10 @@ ar_proc_cwd() {
 # A single agents.tsv.prev meant one poisoned snapshot plus its successor
 # evicted the last good state. Instead keep timestamped copies: skip the write
 # when nothing changed, repoint the `last` symlink (SNAP_FILE) at the newest,
-# keep the newest AGENT_RESUME_KEEP (>=5) and prune those beyond it older than
-# AGENT_RESUME_KEEP_DAYS (30).
+# keep AT LEAST the newest AGENT_RESUME_KEEP (default 5) as a floor, and
+# additionally age out anything beyond that floor once it is older than
+# AGENT_RESUME_KEEP_DAYS (default 30). A recent snapshot past the floor is kept,
+# so this is a floor + age-out, not a hard count cap.
 
 # ar_files_differ <a> <b> : true (0) when they differ or <b> is absent.
 ar_files_differ() {
@@ -96,7 +98,8 @@ ar_rotate_snapshots() {
     local snap="$1" tmp="$2" dir base prefix ext keep days ts target i old f
     dir="$(dirname "$snap")"; base="$(basename "$snap")"
     prefix="${base%.*}"; ext="${base##*.}"
-    keep="${AGENT_RESUME_KEEP:-5}"; days="${AGENT_RESUME_KEEP_DAYS:-30}"
+    keep="$(ar_opt AGENT_RESUME_KEEP @agent-resume-keep 5)"
+    days="$(ar_opt AGENT_RESUME_KEEP_DAYS @agent-resume-keep-days 30)"
     mkdir -p "$dir" 2>/dev/null || true
     # dedup: identical to the current snapshot -> drop the new write
     if [ -f "$snap" ] && ! ar_files_differ "$tmp" "$snap"; then
