@@ -43,3 +43,77 @@ ar_tool_enabled() {
         *) return 1 ;;
     esac
 }
+
+# --- portable primitives (macOS BSD vs Linux GNU) --------------------------
+# The reverse-lookups in snapshot.sh use tools whose flags differ by platform;
+# on the wrong platform they emit nothing and the resume id is silently dropped.
+# Branch on the OS (AR_OS overridable for tests) so both work. Callers must LOG
+# loudly when a probe still comes back empty rather than degrade in silence.
+
+# ar_mtime <path> -> epoch mtime, or 0 on any failure (never empty).
+ar_mtime() {
+    local m
+    if [ "${AR_OS:-$(uname)}" = Darwin ]; then m="$(stat -f %m "$1" 2>/dev/null)"
+    else m="$(stat -c %Y "$1" 2>/dev/null)"; fi
+    printf '%s' "${m:-0}"
+}
+
+# ar_epoch_from_stamp <YYYYMMDD_HHMMSS> -> epoch, empty on failure.
+ar_epoch_from_stamp() {
+    local s="$1" d t
+    if [ "${AR_OS:-$(uname)}" = Darwin ]; then
+        date -j -f '%Y%m%d_%H%M%S' "$s" +%s 2>/dev/null
+    else
+        d="${s%_*}"; t="${s#*_}"   # 20260711 / 120000 -> GNU date wants ISO
+        date -d "${d:0:4}-${d:4:2}-${d:6:2} ${t:0:2}:${t:2:2}:${t:4:2}" +%s 2>/dev/null
+    fi
+}
+
+# ar_proc_cwd <pid> -> working directory of the process, empty on failure.
+ar_proc_cwd() {
+    if [ "${AR_OS:-$(uname)}" = Darwin ]; then
+        lsof -a -d cwd -p "$1" -Fn 2>/dev/null | sed -n 's/^n//p' | head -1
+    else
+        readlink "/proc/$1/cwd" 2>/dev/null
+    fi
+}
+
+# --- snapshot rotation (mirrors tmux-resurrect save_all/remove_old_backups) -
+# A single agents.tsv.prev meant one poisoned snapshot plus its successor
+# evicted the last good state. Instead keep timestamped copies: skip the write
+# when nothing changed, repoint the `last` symlink (SNAP_FILE) at the newest,
+# keep AT LEAST the newest AGENT_RESUME_KEEP (default 5) as a floor, and
+# additionally age out anything beyond that floor once it is older than
+# AGENT_RESUME_KEEP_DAYS (default 30). A recent snapshot past the floor is kept,
+# so this is a floor + age-out, not a hard count cap.
+
+# ar_files_differ <a> <b> : true (0) when they differ or <b> is absent.
+ar_files_differ() {
+    ! cmp -s "$1" "$2"
+}
+
+# ar_rotate_snapshots <snap_file> <tmpfile>
+# <snap_file> is the `last` symlink path; timestamped copies live beside it.
+ar_rotate_snapshots() {
+    local snap="$1" tmp="$2" dir base prefix ext keep days ts target i old f
+    dir="$(dirname "$snap")"; base="$(basename "$snap")"
+    prefix="${base%.*}"; ext="${base##*.}"
+    keep="$(ar_opt AGENT_RESUME_KEEP @agent-resume-keep 5)"
+    days="$(ar_opt AGENT_RESUME_KEEP_DAYS @agent-resume-keep-days 30)"
+    mkdir -p "$dir" 2>/dev/null || true
+    # dedup: identical to the current snapshot -> drop the new write
+    if [ -f "$snap" ] && ! ar_files_differ "$tmp" "$snap"; then
+        rm -f "$tmp" 2>/dev/null; return 0
+    fi
+    ts="$(date +%Y%m%dT%H%M%S)"; target="$dir/${prefix}.${ts}.${ext}"; i=0
+    while [ -e "$target" ]; do i=$(( i + 1 )); target="$dir/${prefix}.${ts}_${i}.${ext}"; done
+    mv -f "$tmp" "$target" 2>/dev/null || { rm -f "$tmp"; return 1; }
+    ln -sfn "$(basename "$target")" "$snap" 2>/dev/null \
+        || ln -sf "$(basename "$target")" "$snap" 2>/dev/null
+    # prune: beyond the newest $keep, delete those older than $days days
+    old="$(ls -t "$dir/${prefix}."*."${ext}" 2>/dev/null | tail -n +"$(( keep + 1 ))")"
+    [ -n "$old" ] && printf '%s\n' "$old" | while IFS= read -r f; do
+        [ -n "$f" ] && find "$f" -type f -mtime "+${days}" -exec rm -f {} \; 2>/dev/null
+    done
+    return 0
+}

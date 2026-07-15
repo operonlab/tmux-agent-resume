@@ -49,7 +49,7 @@ tt() {  # tt <seconds> <tmux args...>
 LOCK_DIR="$CACHE/agent-restore.lock"
 mkdir -p "$(dirname "$LOCK_DIR")" 2>/dev/null || true
 if ! mkdir "$LOCK_DIR" 2>/dev/null; then
-    lockage=$(( $(date +%s) - $(stat -f %m "$LOCK_DIR" 2>/dev/null || echo 0) ))
+    lockage=$(( $(date +%s) - $(ar_mtime "$LOCK_DIR") ))
     if [ "$lockage" -lt 120 ]; then
         rlog "another instance holds lock (age=${lockage}s), exiting"
         exit 0
@@ -60,7 +60,7 @@ if ! mkdir "$LOCK_DIR" 2>/dev/null; then
 fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null' EXIT
 
-age=$(( $(date +%s) - $(stat -f %m "$SNAP_FILE" 2>/dev/null || echo 0) ))
+age=$(( $(date +%s) - $(ar_mtime "$SNAP_FILE") ))
 sent=0; skipped=0
 
 # Slurp the whole TSV into memory FIRST. The loop body runs tmux (via timeout),
