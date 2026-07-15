@@ -198,22 +198,25 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
             # resume hard-binds workDir -> use it. Same-cwd instances are
             # indistinguishable; take the most recently active.
             cmd="kimi"
-            kcwd=$(lsof -a -d cwd -p "$apid" -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
+            kcwd=$(ar_proc_cwd "$apid")
             kidx="$HOME/.kimi-code/session_index.jsonl"
             if [ -n "$kcwd" ] && [ -f "$kidx" ]; then
-                best=""; bestm=0
+                best=""; bestm=0; matched=0
                 while IFS= read -r kline; do
                     case "$kline" in *"\"workDir\":\"$kcwd\""*) ;; *) continue ;; esac
                     sdir=$(printf '%s' "$kline" | sed -n 's/.*"sessionDir":"\([^"]*\)".*/\1/p')
                     ksid=$(printf '%s' "$kline" | sed -n 's/.*"sessionId":"\([^"]*\)".*/\1/p')
                     [ -n "$sdir" ] && [ -f "$sdir/state.json" ] || continue
-                    m=$(stat -f %m "$sdir/state.json" 2>/dev/null || echo 0)
+                    matched=$(( matched + 1 ))
+                    m=$(ar_mtime "$sdir/state.json")
                     if [ "$m" -gt "$bestm" ]; then bestm=$m; best="$ksid"; fi
                 done < "$kidx"
                 if [ -n "$best" ]; then
                     cmd="kimi -r $best"
                     mode="index"
                     rowcwd="$kcwd"
+                elif [ "$matched" -gt 0 ]; then
+                    slog "warn $coord (kimi): $matched session(s) matched cwd but none selectable (mtime probe empty -- platform tool?) -> argv fallback"
                 fi
             fi
             ;;
@@ -224,10 +227,11 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
                 hlog="$HOME/.hermes/logs/agent.log"
                 started=$(_proc_start_epoch "$apid")
                 if [ -f "$hlog" ] && [ -n "$started" ]; then
-                    hsid=""
+                    hsid=""; hcands=0
                     for hid in $(tail -c 200000 "$hlog" 2>/dev/null \
                         | grep -oE 'session=[0-9]{8}_[0-9]{6}_[0-9a-f]{6}' | cut -d= -f2 | sort -u); do
-                        hts=$(date -j -f '%Y%m%d_%H%M%S' "${hid%_*}" +%s 2>/dev/null) || continue
+                        hcands=$(( hcands + 1 ))
+                        hts=$(ar_epoch_from_stamp "${hid%_*}"); [ -n "$hts" ] || continue
                         d=$(( started - hts )); [ "$d" -lt 0 ] && d=$(( -d ))
                         [ "$d" -le 120 ] && hsid="$hid"
                     done
@@ -236,6 +240,8 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
                         base=$(_strip_session_flags "$htail" "--resume -r --continue" "")
                         cmd="hermes${base:+ $base} --resume $hsid"
                         mode="log"
+                    elif [ "$hcands" -gt 0 ]; then
+                        slog "warn $coord (hermes): $hcands session id(s) in log but none parseable/matched (date probe empty -- platform tool?) -> argv fallback"
                     fi
                 fi
             fi
@@ -270,9 +276,7 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
     count=$(( count + 1 ))
 done < <(tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_path}' 2>/dev/null)
 
-mkdir -p "$(dirname "$SNAP_FILE")" 2>/dev/null || true
-[ -f "$SNAP_FILE" ] && cp -f "$SNAP_FILE" "$SNAP_FILE.prev" 2>/dev/null
-mv -f "$tmpfile" "$SNAP_FILE" 2>/dev/null || rm -f "$tmpfile"
+ar_rotate_snapshots "$SNAP_FILE" "$tmpfile"
 rm -f "$psfile"
 slog "snapshot ok agents=$count file=$SNAP_FILE"
 exit 0
