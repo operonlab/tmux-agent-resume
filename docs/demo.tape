@@ -1,11 +1,12 @@
 # tmux-agent-resume demo — replay each AI CLI to its exact session after a crash.
-# Fully self-contained: docs/demo-setup.sh stages an anonymous cockpit shell and
-# a catppuccin-mocha ISOLATED tmux server (socket ar-demo). It is a DRY RUN:
-# three bare-shell windows (claude / codex / kimi) stand in for restored agent
-# panes, a fixed snapshot TSV maps them to resume commands (all fake, under
-# /Users/demo/*), and restore.sh runs with AGENT_RESUME_DRYRUN=1 — it only LOGS
-# what it WOULD type after the per-CLI allowlist. Nothing is sent, no CLI is
-# launched, and CLAUDE_CONFIG_DIR points at a throwaway temp dir.
+# Fully self-contained: docs/demo-setup.sh stages an anonymous Starship-clone
+# shell + the family two-row pill cockpit on a catppuccin-mocha ISOLATED tmux
+# server (socket ar-demo). It is a DRY RUN: three bare-shell windows (claude /
+# codex / kimi) stand in for restored agent panes, a fixed snapshot TSV maps them
+# to resume commands (all fake, under /Users/demo/*), and restore.sh runs with
+# AGENT_RESUME_DRYRUN=1 — it only LOGS what it WOULD type after the per-CLI
+# allowlist. Nothing is sent, no CLI is launched, and CLAUDE_CONFIG_DIR points at
+# a throwaway temp dir.
 # Re-record from the repo root with:  vhs docs/demo.tape
 Output "docs/demo.gif"
 Require tmux
@@ -13,8 +14,8 @@ Require tmux
 Set Shell "bash"
 Set FontFamily "MesloLGS Nerd Font Mono"
 Set FontSize 20
-Set Width 1600
-Set Height 760
+Set Width 2392
+Set Height 940
 Set Padding 20
 Set TypingSpeed 35ms
 
@@ -24,7 +25,7 @@ Enter
 Sleep 3s
 Type "clear; tmux -L ar-demo attach -t demo"
 Enter
-Sleep 2s
+Sleep 2500ms
 Show
 
 Sleep 1500ms
