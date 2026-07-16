@@ -281,6 +281,17 @@ while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
     count=$(( count + 1 ))
 done < <(tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\t#{pane_id}\t#{pane_pid}\t#{pane_tty}\t#{pane_current_path}' 2>/dev/null)
 
+# integrity guard: never let a transient empty stage (continuum saving mid-restore,
+# before resumed agents relaunch) repoint `last` at an empty snapshot and silence
+# the next auto-restore. Keyed on the restore lock, not pane count, so a genuine
+# all-agents-closed save still records. See ar_should_skip_degenerate in common.sh.
+RESTORE_LOCK="$CACHE/agent-restore.lock"
+if ar_should_skip_degenerate "$count" "$SNAP_FILE" "$RESTORE_LOCK"; then
+    rm -f "$tmpfile" "$psfile"
+    slog "skip: 0 agents captured while a restore is in progress; kept the existing non-empty snapshot (restore-window guard)"
+    exit 0
+fi
+
 ar_rotate_snapshots "$SNAP_FILE" "$tmpfile"
 rm -f "$psfile"
 slog "snapshot ok agents=$count file=$SNAP_FILE"

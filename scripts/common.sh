@@ -117,3 +117,24 @@ ar_rotate_snapshots() {
     done
     return 0
 }
+
+# ar_should_skip_degenerate <new_row_count> <snap_file> <restore_lock_dir>
+# True (0) = SKIP this snapshot write. It fires only when ALL hold:
+#   - the fresh snapshot captured ZERO agents ($1 == 0), AND
+#   - a restore is in progress ($3 exists), AND
+#   - a non-empty snapshot already exists ($2 is present and non-empty).
+# That combination is the 2026-07-15 breakpoint-loss window: continuum fires a
+# periodic save mid-restore, before the resumed agents have relaunched, so the
+# save sees an empty stage and would repoint `last` at it. Guarding on the
+# restore lock (not on pane count) means a genuine "user closed every agent"
+# save -- no restore active -- is NOT skipped and records the empty state.
+# ponytail: only count==0 during an active restore is caught; a partial
+# regression (some agents captured, some still cold-starting after the lock is
+# released) still writes. Add a row-count floor / post-restore grace window if
+# that window ever bites.
+ar_should_skip_degenerate() {
+    [ "${1:-0}" -eq 0 ] 2>/dev/null || return 1
+    [ -d "$3" ] || return 1
+    [ -s "$2" ] || return 1
+    return 0
+}
