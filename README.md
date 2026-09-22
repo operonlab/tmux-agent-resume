@@ -8,8 +8,8 @@
 
 **macOS-only (v1).** The reverse-lookup relies on BSD tool output — `stat -f`,
 `date -j`, BSD `ps`, and `lsof` — so this release targets macOS. Linux support
-is not there yet; CI runs shellcheck on Linux but the behaviour is only asserted
-on macOS. Tested on **tmux next-3.8** (HEAD-9180356), 2026-07.
+is not there yet; CI also runs the smoke suite on Linux (agent detection), but
+the restore side is only asserted on macOS. Tested on **tmux next-3.8** (HEAD-9180356), 2026-07.
 
 ![tmux-agent-resume restore --dry-run: a table of eight AI-CLI panes (claude, codex, agy, copilot, opencode, kimi, hermes, qwen), each showing the exact resume command it would type after a restart, all passing the per-CLI allowlist with zero keystrokes sent](docs/screenshot.png)
 
@@ -201,8 +201,8 @@ chains onto resurrect's save/restore hooks. Install
 [tmux-resurrect](https://github.com/tmux-plugins/tmux-resurrect) and reload.
 
 **Does this run on Linux?** Not in v1. The session reverse-lookup depends on
-BSD/macOS tool output. It will not error loudly, but it is unsupported and
-unasserted there.
+BSD/macOS tool output. Agent detection is covered by a Linux smoke run in CI,
+but restoring sessions has not been verified there, so it is still unsupported.
 
 ---
 
