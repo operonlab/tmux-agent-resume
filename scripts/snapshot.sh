@@ -94,7 +94,9 @@ psfile=$(mktemp) || { rm -f "$tmpfile"; exit 0; }
 ps -axo pid=,tty=,command= > "$psfile" 2>/dev/null || true
 
 while IFS=$'\t' read -r coord paneid ppid ptty ppath; do
-    ttybase=${ptty##*/}
+    # strip only /dev/: ps prints the tty relative to /dev, which is one level
+    # on macOS (ttys001) but two on Linux (pts/3) — a basename loses the `pts/`.
+    ttybase=${ptty#/dev/}
     [ -n "$ttybase" ] || continue
     # known agent process on the pane tty that is not the pane shell (earliest pid).
     # process name is not trustworthy: kimi renames to kimi-code, hermes is

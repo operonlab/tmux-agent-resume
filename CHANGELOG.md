@@ -4,6 +4,18 @@ All notable changes to this project are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this project aims to
 follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Agents were never detected on Linux, and nothing said so.** The snapshot
+  matched each pane's tty against `ps` by basename, which turns `/dev/pts/3`
+  into `3` while `ps` prints `pts/3` — so every save recorded zero agents and
+  there was nothing to restore. It now compares the path relative to `/dev`,
+  which is what `ps` prints on both systems; macOS behaviour is unchanged.
+  Linux is still not an officially supported platform (the restore side has
+  not been verified there), but the smoke suite now passes on Debian 13.
+
 ## [0.1.0] - 2026-07-11
 
 First release. macOS-only. A sidecar for

@@ -44,7 +44,7 @@ jobs:
 
   smoke:
     # The reverse-lookup relies on BSD tool output (stat -f, date -j, ps, lsof),
-    # so behaviour is only asserted on macOS. Linux gets shellcheck + unit above.
+    # so macOS is the supported platform. Linux runs the same smoke below.
     name: smoke (macOS)
     runs-on: macos-latest
     steps:
@@ -69,3 +69,16 @@ jobs:
           bash tests/validate_test.sh
           bash tests/hook_install_test.sh
           bash tests/smoke.sh
+
+  smoke-linux:
+    # Linux is not officially supported yet, but the snapshot's tty match is the
+    # one place the two systems differ in shape (tmux /dev/pts/N vs ps pts/N);
+    # this keeps agent detection there from regressing silently.
+    name: smoke (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tmux + jq
+        run: sudo apt-get update && sudo apt-get install -y tmux jq
+      - name: Smoke on isolated socket
+        run: bash tests/smoke.sh

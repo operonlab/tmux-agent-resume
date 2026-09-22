@@ -11,6 +11,8 @@
 #   - agent-resume.tmux CHAINS onto an existing resurrect hook (never clobbers)
 #     and is idempotent across reloads
 #   - snapshot.sh on a server with no AI CLI writes an empty (agents=0) TSV
+#   - snapshot.sh finds a process named `claude` on its pane's tty (a stand-in
+#     `sleep` renamed via exec -a) — the pane-tty/ps-tty match on this OS
 #   - restore.sh skips a busy pane, rejects an injection payload via the
 #     allowlist, and would-send a validated payload (dry-run)
 #   - teardown.sh removes only our hook segment, preserving the user's
@@ -114,6 +116,26 @@ else
 fi
 grep -q 'agents=0' "$SNAP_LOG" 2>/dev/null && ok "snapshot logged agents=0" \
     || bad "snapshot log missing agents=0"
+
+# ── 4b. snapshot: an agent on the pane tty is found ─────────────
+# The pane shell backgrounds a `sleep` renamed to `claude`, so the "agent" is a
+# child on the pane's tty, not the pane pid itself. tmux reports the tty as
+# /dev/ttysNNN on macOS but /dev/pts/N on Linux, where ps prints `pts/N`.
+tmux new-window -t t:3 "bash -c '(exec -a claude sleep 300) & wait'"
+for _ in $(seq 1 50); do   # wait for the renamed child, not a fixed delay
+    ps -axo command= | grep -q '^claude 300' && break
+    sleep 0.1
+done
+AGENT_TSV="$TMPD/agent.tsv"
+AGENT_LOG="$TMPD/agent.log"
+AGENT_RESUME_SNAP_FILE="$AGENT_TSV" AGENT_RESUME_LOG="$AGENT_LOG" \
+    bash "$ROOT/scripts/snapshot.sh" >/dev/null 2>&1
+if awk -F'\t' '$1 == "t:3.0" && $2 == "claude"' "$AGENT_TSV" 2>/dev/null | grep -q .; then
+    ok "snapshot finds the claude process on its pane tty"
+else
+    bad "snapshot missed the agent on t:3.0 (tsv: $(tr '\n' '|' < "$AGENT_TSV" 2>/dev/null); log: $(tail -1 "$AGENT_LOG" 2>/dev/null))"
+fi
+tmux kill-window -t t:3
 
 # ── 5. restore: busy-skip + injection-reject + validated dry-run ─
 if [ -z "$BAREA" ] || [ -z "$BAREB" ] || [ -z "$BUSY" ]; then
